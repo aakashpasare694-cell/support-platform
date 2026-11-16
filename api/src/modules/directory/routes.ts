@@ -510,6 +510,116 @@ async function teamById(id: number) {
 
 // ─── Roles ──────────────────────────────────────────────────────────────────
 
+/**
+ * Creates a custom role.
+ *
+ * The two seeded roles (Super Admin, Admin) are `is_system` and exist so there
+ * is always a way in. Everything else an organisation needs — Support Manager,
+ * Junior Agent, whatever they call them — is theirs to define, because role
+ * names are an organisational decision, not a product one.
+ */
+directoryRoutes.post(
+  '/roles',
+  requirePermission('role.manage'),
+  zValidator(
+    'json',
+    z.object({
+      name: z.string().trim().min(2, 'Give the role a name'),
+      description: z.string().trim().max(200).optional(),
+      permissionCodes: z.array(z.string()).default([]),
+    }),
+    envelopeValidation,
+  ),
+  async (c) => {
+    const actor = actorOf(c)
+    const { name, description, permissionCodes } = c.req.valid('json')
+
+    // A stable, URL-safe code derived from the name — the name can be renamed
+    // later without breaking grants that reference the code.
+    const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'role'
+    let code = base
+    for (let n = 2; ; n++) {
+      const clash = await db().selectFrom('sp_roles').select('id').where('code', '=', code).executeTakeFirst()
+      if (!clash) break
+      code = `${base}_${n}`
+    }
+
+    const permissions = await db().selectFrom('sp_permissions').select(['id', 'code']).execute()
+    const unknown = permissionCodes.filter((p) => !permissions.some((x) => x.code === p))
+    if (unknown.length) throw new BadRequest(`Unknown permission(s): ${unknown.join(', ')}`)
+
+    const last = await db()
+      .selectFrom('sp_roles')
+      .select(({ fn }) => fn.max('sort_order').as('m'))
+      .executeTakeFirst()
+
+    const id = await withTransaction(async (trx) => {
+      const res = await trx
+        .insertInto('sp_roles')
+        .values({
+          code,
+          name,
+          description: description ?? null,
+          sort_order: Number(last?.m ?? 0) + 1,
+          // Custom roles are deletable; only the seeded two are not.
+          is_system: 0,
+        })
+        .executeTakeFirstOrThrow()
+      const roleId = Number(res.insertId)
+
+      const ids = permissions.filter((p) => permissionCodes.includes(p.code)).map((x) => x.id)
+      if (ids.length) {
+        await trx
+          .insertInto('sp_role_permissions')
+          .values(ids.map((permission_id) => ({ role_id: roleId, permission_id })))
+          .execute()
+      }
+      return roleId
+    })
+
+    await record(actor, 'role.created', 'role', id, { code, name, permissionCodes })
+    return created(c, { code, name, permissionCodes })
+  },
+)
+
+/**
+ * Deletes a custom role.
+ *
+ * Refused for the seeded roles, and refused while anyone still holds it —
+ * deleting a role out from under an agent would silently strip their access
+ * with nothing in the UI to explain why.
+ */
+directoryRoutes.delete('/roles/:code', requirePermission('role.manage'), async (c) => {
+  const actor = actorOf(c)
+  const code = c.req.param('code')
+
+  const role = await db().selectFrom('sp_roles').selectAll().where('code', '=', code).executeTakeFirst()
+  if (!role) throw new NotFound('That role does not exist')
+  if (role.is_system) {
+    throw new BadRequest(`"${role.name}" is a built-in role and cannot be deleted. You can edit its permissions instead.`)
+  }
+
+  const holders = await db()
+    .selectFrom('sp_user_product_roles')
+    .select(({ fn }) => fn.countAll<number>().as('n'))
+    .where('role_id', '=', role.id)
+    .executeTakeFirst()
+
+  if (Number(holders?.n ?? 0) > 0) {
+    throw new BadRequest(
+      `${holders?.n} agent(s) still have the "${role.name}" role. Move them to another role before deleting it.`,
+    )
+  }
+
+  await withTransaction(async (trx) => {
+    await trx.deleteFrom('sp_role_permissions').where('role_id', '=', role.id).execute()
+    await trx.deleteFrom('sp_roles').where('id', '=', role.id).execute()
+  })
+
+  await record(actor, 'role.deleted', 'role', role.id, { code, name: role.name })
+  return ok(c, { code })
+})
+
 directoryRoutes.patch(
   '/roles/:code',
   requirePermission('role.manage'),

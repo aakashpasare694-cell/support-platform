@@ -90,63 +90,14 @@ const READ_ONLY = [
 ]
 
 const ROLES: [code: string, name: string, description: string, permissions: string[]][] = [
+  // Only two roles ship by default. They exist so there is always a way in —
+  // Super Admin to hold everything, Admin to run the place day to day.
+  //
+  // Every other role an organisation needs is theirs to create under
+  // Admin -> Roles, because what a "Support Manager" may do is an
+  // organisational decision, not something this product should presume.
   ['super_admin', 'Super Admin', 'Full access to every product and all settings', ALL],
   ['admin', 'Admin', 'Manage products, agents, teams and settings', ALL.filter((p) => p !== 'ticket.delete')],
-  [
-    'support_manager',
-    'Support Manager',
-    'Sees the whole queue for their products and can direct the team',
-    [
-      'ticket.view.all', 'ticket.create', 'ticket.reply', 'ticket.note',
-      'ticket.assign.self', 'ticket.assign.others', 'ticket.status.change',
-      'ticket.priority.change', 'ticket.tag', 'ticket.reopen', 'ticket.merge',
-      'ticket.spam', 'ticket.export',
-      'attachment.download', 'attachment.upload',
-      'customer.view', 'customer.create', 'customer.manage', 'customer.merge',
-      'product.view', 'agent.view', 'team.view', 'team.manage',
-      'canned.view', 'canned.manage', 'canned.manage_shared',
-      'automation.view', 'sla.view', 'tag.manage',
-      'report.view', 'report.view.own', 'report.export',
-    ],
-  ],
-  [
-    'support_agent',
-    'Support Agent',
-    'Works the whole queue for their products',
-    [
-      'ticket.view.all', 'ticket.create', 'ticket.reply', 'ticket.note',
-      'ticket.assign.self', 'ticket.status.change', 'ticket.priority.change',
-      'ticket.tag', 'ticket.reopen',
-      'attachment.download', 'attachment.upload',
-      'customer.view', 'customer.create', 'canned.view', 'canned.manage',
-      'agent.view', 'team.view', 'report.view.own',
-    ],
-  ],
-  [
-    'junior_agent',
-    'Junior Agent',
-    'Sees only the tickets assigned to them',
-    [
-      'ticket.view.assigned', 'ticket.reply', 'ticket.note',
-      'ticket.status.change', 'ticket.tag',
-      'attachment.download', 'attachment.upload',
-      'customer.view', 'canned.view', 'report.view.own',
-    ],
-  ],
-  [
-    'team_lead',
-    'Team Lead',
-    'Sees their teams’ tickets rather than the whole product',
-    [
-      'ticket.view.team', 'ticket.create', 'ticket.reply', 'ticket.note',
-      'ticket.assign.self', 'ticket.assign.others', 'ticket.status.change',
-      'ticket.priority.change', 'ticket.tag', 'ticket.reopen',
-      'attachment.download', 'attachment.upload',
-      'customer.view', 'customer.create', 'canned.view', 'canned.manage',
-      'agent.view', 'team.view', 'report.view.own',
-    ],
-  ],
-  ['read_only', 'Read Only Agent', 'View tickets without replying or editing', READ_ONLY],
 ]
 
 // Semantic flags, not names: logic asks is_open / is_resolved / pauses_sla, so

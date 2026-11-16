@@ -172,6 +172,10 @@ export async function patch<T>(path: string, body: unknown): Promise<T> {
   return (await request<T>(path, { method: 'PATCH', body })).data
 }
 
+export async function del<T>(path: string): Promise<T> {
+  return (await request<T>(path, { method: 'DELETE' })).data
+}
+
 /** Builds a query string, dropping empties and expanding arrays. */
 export function qs(params: Record<string, unknown>): string {
   const sp = new URLSearchParams()

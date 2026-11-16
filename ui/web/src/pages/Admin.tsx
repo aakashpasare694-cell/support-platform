@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, Plus, Shield, X } from 'lucide-react'
+import { Check, Plus, Shield, Trash2, X } from 'lucide-react'
 import type { Agent, ID, Product, Team } from '@/data/types'
 import * as api from '@/data/api'
 import { useAuth } from '@/lib/auth'
@@ -637,6 +637,9 @@ export function Roles() {
   const [selected, setSelected] = useState<string | null>(null)
   const [draft, setDraft] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [busy, setBusy] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
 
   const load = () =>
@@ -701,6 +704,43 @@ export function Roles() {
     }
   }
 
+  const addRole = async () => {
+    const name = newName.trim()
+    if (!name) return
+    setBusy(true)
+    try {
+      // Created with no permissions: an empty role grants nothing, so a
+      // mistyped name can never hand out access by accident. Tick the
+      // permissions deliberately, then save.
+      const role = await api.createRole({ name, permissionCodes: [] })
+      setNewName('')
+      setCreating(false)
+      await load()
+      choose(role.code)
+      push({ tone: 'success', title: `${role.name} created`, detail: 'Now choose its permissions and save.' })
+    } catch (err) {
+      push({ tone: 'error', title: 'Could not create the role', detail: err instanceof Error ? err.message : undefined })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const removeRole = async (r: { code: string; name: string }) => {
+    if (!window.confirm(`Delete the "${r.name}" role? This cannot be undone.`)) return
+    setBusy(true)
+    try {
+      await api.deleteRole(r.code)
+      setSelected(null)
+      await load()
+      push({ tone: 'success', title: `${r.name} deleted` })
+    } catch (err) {
+      // The API refuses while agents still hold the role, and says how many.
+      push({ tone: 'error', title: 'Could not delete the role', detail: err instanceof Error ? err.message : undefined })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const groups = [...new Set(data.permissions.map((p) => p.group))].map((group) => ({
     group,
     items: data.permissions.filter((p) => p.group === group),
@@ -716,21 +756,69 @@ export function Roles() {
         <Card padded={false}>
           <div className="p-2">
             {data.roles.map((r) => (
-              <button
-                key={r.code}
-                onClick={() => choose(r.code)}
-                className={cn(
-                  'w-full rounded-ctl px-2.5 py-2 text-left transition-colors',
-                  role?.code === r.code ? 'bg-brand-soft' : 'hover:bg-surface-3',
+              <div key={r.code} className="group/role relative">
+                <button
+                  onClick={() => choose(r.code)}
+                  className={cn(
+                    'w-full rounded-ctl px-2.5 py-2 text-left transition-colors',
+                    role?.code === r.code ? 'bg-brand-soft' : 'hover:bg-surface-3',
+                  )}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className={cn('text-[13px] font-medium', role?.code === r.code ? 'text-brand' : 'text-ink')}>
+                      {r.name}
+                    </span>
+                    {r.isSystem && (
+                      <span title="Built in — its permissions can be edited, but it cannot be deleted"
+                            className="rounded bg-surface-3 px-1 py-px text-[10px] font-semibold uppercase tracking-wide text-ink-subtle">
+                        built in
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-0.5 block pr-6 text-xs leading-snug text-ink-subtle">{r.description}</span>
+                </button>
+                {editable && !r.isSystem && (
+                  <button
+                    onClick={() => void removeRole(r)}
+                    disabled={busy}
+                    title={`Delete the ${r.name} role`}
+                    className="absolute right-1.5 top-1.5 rounded p-1 text-ink-subtle opacity-0 transition-opacity hover:bg-danger-soft hover:text-danger focus:opacity-100 group-hover/role:opacity-100"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 )}
-              >
-                <span className={cn('block text-[13px] font-medium', role?.code === r.code ? 'text-brand' : 'text-ink')}>
-                  {r.name}
-                </span>
-                <span className="mt-0.5 block text-xs leading-snug text-ink-subtle">{r.description}</span>
-              </button>
+              </div>
             ))}
           </div>
+
+          {editable && (
+            <div className="border-t border-line p-2">
+              {creating ? (
+                <div className="space-y-2">
+                  <Input
+                    autoFocus
+                    value={newName}
+                    placeholder="e.g. Support Manager"
+                    onChange={(e) => setNewName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void addRole()
+                      if (e.key === 'Escape') { setCreating(false); setNewName('') }
+                    }}
+                  />
+                  <div className="flex gap-2">
+                    <Button size="xs" variant="primary" loading={busy} disabled={!newName.trim()} onClick={() => void addRole()}>
+                      Create
+                    </Button>
+                    <Button size="xs" onClick={() => { setCreating(false); setNewName('') }}>Cancel</Button>
+                  </div>
+                </div>
+              ) : (
+                <Button size="xs" className="w-full" onClick={() => setCreating(true)}>
+                  <Plus className="h-3.5 w-3.5" /> New role
+                </Button>
+              )}
+            </div>
+          )}
         </Card>
 
         <Card ref={panelRef}>

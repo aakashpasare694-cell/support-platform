@@ -10,8 +10,15 @@ import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const seed = await readFile('scripts/seed.ts', 'utf8')
+
+// Scan ONLY the PERMISSIONS array. Matching the whole file also picked up the
+// ROLES entries, which have the same ['code', 'Name', 'Description', …] shape —
+// so a route asking for requirePermission('admin') would have passed this
+// check purely because 'admin' happens to be a role code.
+const block = seed.slice(seed.indexOf('const PERMISSIONS'))
+const permissionsArray = block.slice(0, block.indexOf('\n]\n'))
 const catalogue = new Set(
-  [...seed.matchAll(/^\s*\['([a-z][a-z0-9_.]*)',\s*'[^']+',\s*'/gm)].map((m) => m[1]),
+  [...permissionsArray.matchAll(/\['([a-z][a-z0-9_.]*)',\s*'[^']+',\s*'/g)].map((m) => m[1]),
 )
 
 async function walk(dir) {
