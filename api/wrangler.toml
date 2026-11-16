@@ -2,10 +2,24 @@ name = "support-platform-api"
 main = "src/index.worker.ts"
 compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat"]
+account_id = "cfeffea33945fbbbc45b5fd4d39187af"
 
-# D1 is SQLite, so the schema in migrations/ and every query in the codebase
-# run unchanged here. Apply them with:
-#   wrangler d1 execute support-platform --file migrations/0001_init.sql
+# The SPA is served from this same Worker, so the browser calls a RELATIVE
+# /api/v1 and there is no CORS to configure at all. Build it first:
+#   cd ../support-platform && npm run build
+[assets]
+directory = "../support-platform/dist/web"
+# Any path the API does not claim falls through to the SPA's index.html,
+# which is what makes client-side routes like /inbox/14 survive a refresh.
+not_found_handling = "single-page-application"
+binding = "ASSETS"
+
+# D1 is SQLite, so migrations/ and every query in the codebase run unchanged.
+#   npx wrangler d1 create support-platform        <- put the id below
+#   npx wrangler d1 execute support-platform --remote --file migrations/0001_init.sql
+#   npx wrangler d1 execute support-platform --remote --file migrations/0002_email_and_system.sql
+#   SEED_ADMIN_PASSWORD='...' npm run seed:d1
+#   npx wrangler d1 execute support-platform --remote --file dist/seed.d1.sql
 [[d1_databases]]
 binding = "DB"
 database_name = "support-platform"
@@ -14,8 +28,14 @@ database_id = "REPLACE_WITH_D1_DATABASE_ID"
 [vars]
 NODE_ENV = "production"
 APP_ENV = "production"
-CORS_ORIGINS = "https://support.example.com"
+# Same-origin, so this only matters if you later split the UI onto its own host.
+CORS_ORIGINS = ""
+# Stamped onto outgoing Message-IDs; must be a domain you control.
+INGEST_DOMAIN = "incomingmail.charityerp.com"
 
-# Secrets (wrangler secret put):
-#   JWT_SECRET, CREDENTIALS_MASTER_KEY,
-#   UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
+# Secrets — never in this file. Set each with `npx wrangler secret put NAME`:
+#   JWT_SECRET               openssl rand -base64 48
+#   CREDENTIALS_MASTER_KEY   openssl rand -base64 32   (must decode to 32 bytes)
+#   INBOUND_WEBHOOK_SECRET   openssl rand -hex 32      (also set on the relay Worker)
+# Optional:
+#   UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN   (rate limiting; falls back to in-memory)

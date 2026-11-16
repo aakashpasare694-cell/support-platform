@@ -140,9 +140,78 @@ describe('provider registry', () => {
     expect(entry?.credentialFields.map((f) => f.key)).toEqual(['baseUrl', 'username', 'password'])
   })
 
+  it('registers the production senders too', () => {
+    expect(isKnownProviderType('resend')).toBe(true)
+    expect(isKnownProviderType('sendgrid')).toBe(true)
+  })
+
   it('refuses an unregistered type loudly rather than dropping the mail', () => {
-    expect(isKnownProviderType('sendgrid')).toBe(false)
-    expect(() => createProvider('sendgrid', { credentials: {}, config: {} })).toThrow(/No provider is registered/)
+    expect(isKnownProviderType('postmark')).toBe(false)
+    expect(() => createProvider('postmark', { credentials: {}, config: {} })).toThrow(/No provider is registered/)
+  })
+})
+
+describe('production senders', () => {
+  const threading = (body: Record<string, unknown>, headerKey = 'headers') =>
+    (body[headerKey] ?? {}) as Record<string, string>
+
+  it('resend carries the threading headers and reports its id', async () => {
+    let sent: Record<string, unknown> = {}
+    let auth = ''
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+      expect(String(url)).toBe('https://api.resend.com/emails')
+      auth = (init.headers as Record<string, string>).authorization!
+      sent = JSON.parse(String(init.body))
+      return new Response(JSON.stringify({ id: 're-99' }), { status: 200 })
+    })
+
+    const p = createProvider('resend', { credentials: { apiKey: 're_test' }, config: {} })
+    await expect(p.send(baseMessage)).resolves.toEqual({ providerMessageId: 're-99' })
+
+    expect(auth).toBe('Bearer re_test')
+    const h = threading(sent)
+    expect(h['Message-ID']).toBe(baseMessage.messageId)
+    expect(h['In-Reply-To']).toBe(baseMessage.inReplyTo)
+    expect(h['References']).toBe(baseMessage.references!.join(' '))
+  })
+
+  it('sendgrid accepts a 202 and reads the id from the header', async () => {
+    let sent: Record<string, unknown> = {}
+    vi.stubGlobal('fetch', async (_u: string, init: RequestInit) => {
+      sent = JSON.parse(String(init.body))
+      // 202 with an empty body is SendGrid's success response.
+      return new Response(null, { status: 202, headers: { 'x-message-id': 'sg-77' } })
+    })
+
+    const p = createProvider('sendgrid', { credentials: { apiKey: 'SG.test' }, config: {} })
+    await expect(p.send(baseMessage)).resolves.toEqual({ providerMessageId: 'sg-77' })
+
+    // text/plain must precede text/html or SendGrid renders the wrong part.
+    const content = sent.content as { type: string }[]
+    expect(content[0]!.type).toBe('text/plain')
+    expect(content[1]!.type).toBe('text/html')
+    expect(threading(sent)['Message-ID']).toBe(baseMessage.messageId)
+  })
+
+  it('reports a bad key clearly instead of failing at send time', async () => {
+    vi.stubGlobal('fetch', async () => new Response('unauthorized', { status: 401 }))
+    for (const type of ['resend', 'sendgrid']) {
+      const r = await createProvider(type, { credentials: { apiKey: 'wrong' }, config: {} }).testConnection()
+      expect(r.ok).toBe(false)
+      expect(r.detail).toMatch(/401|rejected the API key/i)
+    }
+  })
+
+  it('does not retry a 4xx but does retry a 5xx', async () => {
+    vi.stubGlobal('fetch', async () => new Response('bad sender', { status: 422 }))
+    await expect(
+      createProvider('resend', { credentials: { apiKey: 'k' }, config: {} }).send(baseMessage),
+    ).rejects.toMatchObject({ retryable: false })
+
+    vi.stubGlobal('fetch', async () => new Response('upstream', { status: 503 }))
+    await expect(
+      createProvider('resend', { credentials: { apiKey: 'k' }, config: {} }).send(baseMessage),
+    ).rejects.toMatchObject({ retryable: true })
   })
 })
 

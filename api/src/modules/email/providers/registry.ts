@@ -1,4 +1,6 @@
 import { mailpitDefinition } from './mailpit.ts'
+import { resendDefinition } from './resend.ts'
+import { sendgridDefinition } from './sendgrid.ts'
 import type { EmailProvider, ProviderContext, ProviderDefinition } from './types.ts'
 import { EmailSendError } from './types.ts'
 
@@ -17,8 +19,10 @@ function register(def: ProviderDefinition): void {
 }
 
 register(mailpitDefinition)
-// SendGrid, Resend and SES register here. Each is one file implementing
-// EmailProvider; nothing below this line changes when they arrive.
+register(resendDefinition)
+register(sendgridDefinition)
+// Adding a vendor is one file implementing EmailProvider plus one line here;
+// nothing below this point, and nothing in the frontend, changes.
 
 /** Every registered type — this is what the admin UI builds its form from. */
 export function providerCatalogue(): {

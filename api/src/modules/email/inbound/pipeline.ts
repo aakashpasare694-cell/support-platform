@@ -256,7 +256,93 @@ export async function ingest(input: IngestInput): Promise<IngestOutcome> {
  * failure of the one above it: clients drop In-Reply-To, people edit subjects,
  * and some forwarders rewrite headers entirely.
  */
+/**
+ * May this sender append to this ticket?
+ *
+ * Freshdesk requires BOTH an email marker (Message-ID, References, or the
+ * [#ERP-4] subject token) AND a "requester check" before threading a reply
+ * onto an existing ticket. We previously had only the markers, which meant a
+ * stranger who guessed a ticket number — and they are sequential, so guessing
+ * is trivial — could inject a message into someone else's conversation. An
+ * agent reading the thread sees it inline and may act on it.
+ *
+ * Accepted senders, matching Freshdesk's rule:
+ *   - the ticket's customer (any address on their profile)
+ *   - anyone already on the thread, including Cc
+ *   - an agent of this system
+ *   - one of our own inbound addresses (a forwarder)
+ *
+ * A sender who fails this does NOT get rejected — the message becomes a NEW
+ * ticket instead. Dropping a real customer's mail because they wrote from a
+ * second address would be a worse failure than an extra ticket.
+ */
+async function senderMayAppend(email: NormalizedEmail, ticketId: number): Promise<boolean> {
+  const sender = email.from.address.toLowerCase()
+
+  const ticket = await db()
+    .selectFrom('sp_tickets')
+    .select(['customer_id'])
+    .where('id', '=', ticketId)
+    .executeTakeFirst()
+  if (!ticket) return false
+
+  // 1. The customer who owns the ticket.
+  const owner = await db()
+    .selectFrom('sp_customer_emails')
+    .select(['id'])
+    .where('customer_id', '=', ticket.customer_id)
+    .where('email', '=', sender)
+    .executeTakeFirst()
+  if (owner) return true
+
+  // 2. An agent. Replies arriving by mail from staff are legitimate.
+  const agent = await db()
+    .selectFrom('sp_users')
+    .select(['id'])
+    .where('email', '=', sender)
+    .executeTakeFirst()
+  if (agent) return true
+
+  // 3. One of our own inbound addresses — i.e. the message was forwarded by a
+  //    mailbox we control rather than sent directly.
+  const ours = await db()
+    .selectFrom('sp_inbound_addresses')
+    .select(['id'])
+    .where('address', '=', sender)
+    .executeTakeFirst()
+  if (ours) return true
+
+  // 4. Already a participant: they appear in the From, To or Cc of a message
+  //    already on this ticket.
+  const messages = await db()
+    .selectFrom('sp_ticket_messages')
+    .select(['from_address', 'to_json', 'cc_json'])
+    .where('ticket_id', '=', ticketId)
+    .execute()
+
+  for (const m of messages) {
+    if ((m.from_address ?? '').toLowerCase() === sender) return true
+    for (const blob of [m.to_json, m.cc_json]) {
+      if (!blob) continue
+      try {
+        const list = JSON.parse(String(blob)) as unknown
+        const addresses = Array.isArray(list)
+          ? list.map((x) => (typeof x === 'string' ? x : (x as { address?: string })?.address ?? ''))
+          : []
+        if (addresses.some((a) => a.toLowerCase() === sender)) return true
+      } catch {
+        // A malformed stored list must not grant access.
+      }
+    }
+  }
+
+  return false
+}
+
 async function resolveThread(email: NormalizedEmail, productId: number): Promise<number | null> {
+  // Each strategy below must ALSO pass senderMayAppend(): a marker alone is
+  // not enough, because markers travel in plain text and can be copied.
+  //
   // 1. Our own Message-ID encodes the ticket id — survives subject edits.
   for (const ref of [email.inReplyTo, ...email.references].filter((x): x is string => !!x)) {
     const own = ticketIdFromOwnMessageId(ref)
@@ -267,7 +353,7 @@ async function resolveThread(email: NormalizedEmail, productId: number): Promise
         .where('id', '=', own)
         .where('product_id', '=', productId)
         .executeTakeFirst()
-      if (exists) return exists.id
+      if (exists && (await senderMayAppend(email, exists.id))) return exists.id
     }
   }
 
@@ -281,7 +367,7 @@ async function resolveThread(email: NormalizedEmail, productId: number): Promise
       .where('m.message_id', 'in', refs)
       .where('t.product_id', '=', productId)
       .executeTakeFirst()
-    if (hit) return hit.id
+    if (hit && (await senderMayAppend(email, hit.id))) return hit.id
   }
 
   // 3. A [#ERP-1024] token in the subject.
@@ -293,7 +379,7 @@ async function resolveThread(email: NormalizedEmail, productId: number): Promise
       .where('ticket_number', '=', token)
       .where('product_id', '=', productId)
       .executeTakeFirst()
-    if (hit) return hit.id
+    if (hit && (await senderMayAppend(email, hit.id))) return hit.id
   }
 
   // 4. Same sender, same normalized subject, recent, still open. Deliberately

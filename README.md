@@ -81,10 +81,8 @@ npx wrangler deploy
 
 ## Known gaps
 
-- **Outbound email only works locally.** Mailpit is the one registered provider;
-  `sendgrid`/`resend`/`ses` have database rows but no adapter, so a deployed
-  instance can receive mail and cannot reply.
-- **Inbound threading has no requester check.** A sender who knows a ticket's
-  `[#ERP-4]` token can append to it. Freshdesk guards this; we do not yet.
-- Attachments are recorded but their bytes are not stored.
+- Attachments are recorded but their bytes are not stored (no R2 adapter yet).
+- Ingest and send run inline rather than on a queue.
+- Provider bounce webhooks are not consumed, so `bounced` is never set.
 - No SLA escalation, automation rules, canned responses or notifications.
+- No password reset flow, and no audit-log screen (the table is populated).
