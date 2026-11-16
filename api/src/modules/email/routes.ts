@@ -23,15 +23,52 @@ function secretMatches(provided: string | undefined, expected: string): boolean 
   return diff === 0
 }
 
-function assertSecret(c: { req: { header: (k: string) => string | undefined }; get: (k: 'config') => { inboundSecret: string } }) {
+/**
+ * Reads the shared secret from any of the four places a mail source can put it.
+ *
+ * Not all of these are a matter of taste. SendGrid Inbound Parse and Mailgun
+ * Routes let you configure a destination URL and NOTHING else — no custom
+ * headers — so `x-inbound-secret` is simply unavailable to them. Their only
+ * options are credentials embedded in the URL (which arrive as Basic auth) or
+ * a query parameter. Supporting header-only auth would mean those providers
+ * could never authenticate at all.
+ */
+function providedSecret(c: {
+  req: { header: (k: string) => string | undefined; query: (k: string) => string | undefined }
+}): string | undefined {
+  const header = c.req.header('x-inbound-secret')
+  if (header) return header
+
+  const auth = c.req.header('authorization') ?? ''
+  if (/^Bearer\s+/i.test(auth)) return auth.replace(/^Bearer\s+/i, '').trim()
+  if (/^Basic\s+/i.test(auth)) {
+    try {
+      // https://user:<secret>@host/... — the password half carries the secret.
+      const decoded = atob(auth.replace(/^Basic\s+/i, '').trim())
+      const idx = decoded.indexOf(':')
+      return idx >= 0 ? decoded.slice(idx + 1) : decoded
+    } catch {
+      return undefined
+    }
+  }
+
+  // Last resort for providers that offer only a URL. A secret in a query
+  // string can end up in access logs, so prefer one of the above where the
+  // provider allows it.
+  return c.req.query('secret') || undefined
+}
+
+function assertSecret(c: {
+  req: { header: (k: string) => string | undefined; query: (k: string) => string | undefined }
+  get: (k: 'config') => { inboundSecret: string }
+}) {
   const expected = c.get('config').inboundSecret
   if (!expected) {
     throw new BadRequest(
       'INBOUND_WEBHOOK_SECRET is not set, so inbound mail cannot be authenticated. Generate one and put it in .env.',
     )
   }
-  const provided = c.req.header('x-inbound-secret') ?? c.req.header('authorization')?.replace(/^Bearer\s+/i, '')
-  if (!secretMatches(provided, expected)) throw new Unauthorized('Invalid inbound secret')
+  if (!secretMatches(providedSecret(c), expected)) throw new Unauthorized('Invalid inbound secret')
 }
 
 /** Same HTTP shape for every outcome, so a sender can be configured once. */

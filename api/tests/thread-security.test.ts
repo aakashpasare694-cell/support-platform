@@ -132,3 +132,49 @@ describe('requester check', () => {
     expect(out.data.status).toBe('appended')
   })
 })
+
+/**
+ * Inbound authentication.
+ *
+ * SendGrid Inbound Parse and Mailgun Routes accept a destination URL and no
+ * custom headers, so the secret must also be readable from Basic auth or a
+ * query parameter — otherwise those providers can never authenticate and
+ * every forwarded message is rejected.
+ */
+describe('inbound secret', () => {
+  const post = (headers: Record<string, string>, qs = '') =>
+    app.fetch(
+      new Request(`http://x/webhooks/email/inbound/mime${qs}`, {
+        method: 'POST',
+        headers: { 'content-type': 'message/rfc822', ...headers },
+        body: eml('Someone <someone@example.org>', `Auth check ${Math.random()}`),
+      }),
+    )
+
+  const secret = 'test-inbound-secret-0123456789abcdef'
+
+  it('accepts the x-inbound-secret header', async () => {
+    expect((await post({ 'x-inbound-secret': secret })).status).toBeLessThan(400)
+  })
+
+  it('accepts Authorization: Bearer', async () => {
+    expect((await post({ authorization: `Bearer ${secret}` })).status).toBeLessThan(400)
+  })
+
+  it('accepts Basic auth, which is how a URL-only provider sends it', async () => {
+    const basic = Buffer.from(`inbound:${secret}`).toString('base64')
+    expect((await post({ authorization: `Basic ${basic}` })).status).toBeLessThan(400)
+  })
+
+  it('accepts ?secret= for providers that offer nothing else', async () => {
+    expect((await post({}, `?secret=${secret}`)).status).toBeLessThan(400)
+  })
+
+  it('still rejects a wrong secret in every position', async () => {
+    expect((await post({ 'x-inbound-secret': 'wrong' })).status).toBe(401)
+    expect((await post({ authorization: 'Bearer wrong' })).status).toBe(401)
+    expect((await post({ authorization: `Basic ${Buffer.from('u:wrong').toString('base64')}` })).status).toBe(401)
+    expect((await post({}, '?secret=wrong')).status).toBe(401)
+    expect((await post({})).status).toBe(401)
+  })
+})
