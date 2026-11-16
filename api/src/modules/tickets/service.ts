@@ -1,4 +1,4 @@
-import { db } from '@/db/index.ts'
+import { db, withTransaction } from '@/db/index.ts'
 import { BadRequest, NotFound } from '@/http/errors.ts'
 import { scopeGroups, visibleProductIds, type Actor } from '@/http/ctx.ts'
 import * as repo from './repository.ts'
@@ -201,7 +201,7 @@ export async function createTicket(actor: Actor, input: CreateTicketInput) {
 
   if (!status || !priority) throw new BadRequest('Ticket statuses and priorities have not been seeded')
 
-  const ticketId = await db().transaction().execute(async (trx) => {
+  const ticketId = await withTransaction(async (trx) => {
     let customerId = input.customerId ?? null
     if (customerId == null) {
       if (!input.customer) throw new BadRequest('A customer is required')
@@ -301,7 +301,7 @@ export async function addMessage(
   const now = mysqlNow()
   let messageRowId = 0
 
-  await db().transaction().execute(async (trx) => {
+  await withTransaction(async (trx) => {
     const seq = await trx
       .selectFrom('sp_ticket_messages')
       .select(({ fn }) => fn.countAll<number>().as('n'))
@@ -423,7 +423,7 @@ export async function updateTicket(actor: Actor, ticketId: number, patch: Update
 
   if (patch.teamId !== undefined) changes.team_id = patch.teamId
 
-  await db().transaction().execute(async (trx) => {
+  await withTransaction(async (trx) => {
     if (patch.tagIds) await repo.setTicketTags(trx, ticketId, patch.tagIds)
     for (const a of activities) {
       await repo.insertActivity(trx, {

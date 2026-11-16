@@ -23,7 +23,7 @@ binding = "ASSETS"
 [[d1_databases]]
 binding = "DB"
 database_name = "support-platform"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "a5709454-1ba9-416f-ae2b-cec309e3ff51"
 
 [vars]
 NODE_ENV = "production"

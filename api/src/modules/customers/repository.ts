@@ -1,4 +1,4 @@
-import type { Transaction } from 'kysely'
+import type { Transaction, Kysely } from 'kysely'
 import { db, type DB } from '@/db/index.ts'
 
 /** All customer SQL. Reads are scoped by the products a customer is associated with. */
@@ -94,7 +94,7 @@ export async function productsFor(customerIds: number[]) {
  * customer with two product associations.
  */
 export async function resolveOrCreate(
-  trx: Transaction<DB>,
+  trx: Kysely<DB>,
   input: { email: string; name: string; company?: string | null; productId: number },
 ): Promise<number> {
   const email = input.email.trim().toLowerCase()

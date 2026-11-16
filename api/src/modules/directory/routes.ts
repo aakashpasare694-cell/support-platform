@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import type { Transaction } from 'kysely'
-import { db } from '@/db/index.ts'
+import type { Transaction, Kysely } from 'kysely'
+import { db, withTransaction } from '@/db/index.ts'
 import type { DB } from '@/db/schema.ts'
 import { actorOf, type AppEnv } from '@/http/ctx.ts'
 import { created, ok } from '@/http/respond.ts'
@@ -185,7 +185,7 @@ directoryRoutes.post(
       .executeTakeFirst()
     if (clash) throw new Conflict('A product with that name or code already exists')
 
-    const id = await db().transaction().execute(async (trx) => {
+    const id = await withTransaction(async (trx) => {
       const res = await trx
         .insertInto('sp_products')
         .values({
@@ -307,7 +307,7 @@ directoryRoutes.post(
     // A temporary password is issued when none is given; it is returned ONCE
     // here and never retrievable again, because only its hash is stored.
     const initialPassword = body.password ?? randomToken(9)
-    const id = await db().transaction().execute(async (trx) => {
+    const id = await withTransaction(async (trx) => {
       const res = await trx
         .insertInto('sp_users')
         .values({
@@ -353,7 +353,7 @@ directoryRoutes.patch(
     if (body.isActive !== undefined) patch.is_active = body.isActive ? 1 : 0
     if (body.password) patch.password_hash = await hashPassword(body.password)
 
-    await db().transaction().execute(async (trx) => {
+    await withTransaction(async (trx) => {
       if (Object.keys(patch).length) {
         await trx.updateTable('sp_users').set(patch).where('id', '=', id).execute()
       }
@@ -378,7 +378,7 @@ directoryRoutes.patch(
 
 /** Grants are replaced wholesale, so this only ever inserts. */
 async function applyGrants(
-  trx: Transaction<DB>,
+  trx: Kysely<DB>,
   userId: number,
   grants: { productId: number | null; roleCode: string }[],
 ) {
@@ -437,7 +437,7 @@ directoryRoutes.post(
   async (c) => {
     const actor = actorOf(c)
     const body = c.req.valid('json')
-    const id = await db().transaction().execute(async (trx) => {
+    const id = await withTransaction(async (trx) => {
       const res = await trx
         .insertInto('sp_teams')
         .values({
@@ -477,7 +477,7 @@ directoryRoutes.patch(
     if (body.description !== undefined) patch.description = body.description || null
     if (body.productId !== undefined) patch.product_id = body.productId
 
-    await db().transaction().execute(async (trx) => {
+    await withTransaction(async (trx) => {
       if (Object.keys(patch).length) await trx.updateTable('sp_teams').set(patch).where('id', '=', id).execute()
       if (body.memberIds) {
         await trx.deleteFrom('sp_team_members').where('team_id', '=', id).execute()
@@ -539,7 +539,7 @@ directoryRoutes.patch(
       .where('rp.role_id', '=', role.id)
       .execute()
 
-    await db().transaction().execute(async (trx) => {
+    await withTransaction(async (trx) => {
       await trx.deleteFrom('sp_role_permissions').where('role_id', '=', role.id).execute()
       const ids = permissions.filter((p) => permissionCodes.includes(p.code)).map((p) => p.id)
       if (ids.length) {

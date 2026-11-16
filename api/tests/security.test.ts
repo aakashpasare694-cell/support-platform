@@ -41,7 +41,9 @@ describe('password hashing', () => {
   it('records its parameters, so iterations can be raised later without locking anyone out', async () => {
     const hash = await hashPassword('x')
     const [scheme, iterations] = hash.split('$')
-    expect(scheme).toBe('pbkdf2')
+    // 'pbkdf2c' = the chained scheme, which keeps the full 600k work factor
+    // while staying under the 100k-per-call limit Cloudflare Workers enforces.
+    expect(scheme).toBe('pbkdf2c')
     expect(Number(iterations)).toBeGreaterThanOrEqual(600_000)
   }, HASHING_TIMEOUT)
 

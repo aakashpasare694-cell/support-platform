@@ -27,8 +27,22 @@ const PBKDF2_ITERATIONS = 600_000
 const SALT_BYTES = 16
 const KEY_BITS = 256
 
-async function pbkdf2(password: string, salt: Uint8Array, iterations: number): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits'])
+/**
+ * Cloudflare Workers rejects a PBKDF2 call above 100,000 iterations:
+ *   NotSupportedError: Pbkdf2 failed: iteration counts above 100000
+ *   are not supported (requested 600000)
+ *
+ * Dropping to 100,000 would put us well under the current OWASP guidance for
+ * PBKDF2-HMAC-SHA256, so instead the work is split into chunks of at most
+ * 100,000 and chained: each round's output becomes the next round's input
+ * keying material. An attacker must still perform the full 600,000 iterations
+ * sequentially, so the work factor is preserved and no single call exceeds
+ * the platform limit.
+ */
+const PBKDF2_MAX_PER_CALL = 100_000
+
+async function deriveOnce(material: Uint8Array, salt: Uint8Array, iterations: number): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey('raw', material as BufferSource, 'PBKDF2', false, ['deriveBits'])
   const bits = await crypto.subtle.deriveBits(
     { name: 'PBKDF2', salt: salt as BufferSource, iterations, hash: 'SHA-256' },
     key,
@@ -37,11 +51,38 @@ async function pbkdf2(password: string, salt: Uint8Array, iterations: number): P
   return new Uint8Array(bits)
 }
 
-/** Produces `pbkdf2$<iterations>$<salt_b64>$<hash_b64>`. */
+/** Single call — only valid up to the platform limit. Kept for legacy hashes. */
+async function pbkdf2(password: string, salt: Uint8Array, iterations: number): Promise<Uint8Array> {
+  return deriveOnce(enc.encode(password), salt, iterations)
+}
+
+/** Chained: total work equals `iterations`, no single call over the limit. */
+async function pbkdf2Chained(password: string, salt: Uint8Array, iterations: number): Promise<Uint8Array> {
+  let material: Uint8Array = enc.encode(password)
+  let remaining = iterations
+  let out = material
+  while (remaining > 0) {
+    const chunk = Math.min(PBKDF2_MAX_PER_CALL, remaining)
+    out = await deriveOnce(material, salt, chunk)
+    material = out
+    remaining -= chunk
+  }
+  return out
+}
+
+/**
+ * Produces `pbkdf2c$<iterations>$<salt_b64>$<hash_b64>`.
+ *
+ * The `c` suffix marks the chained scheme. Hashes written by the earlier
+ * single-call scheme carry the plain `pbkdf2` prefix and are still verified,
+ * so nobody is locked out by this change — though a legacy hash above 100,000
+ * iterations cannot be verified on Workers at all, which is the bug this
+ * fixes.
+ */
 export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES))
-  const hash = await pbkdf2(password, salt, PBKDF2_ITERATIONS)
-  return ['pbkdf2', PBKDF2_ITERATIONS, toB64(salt), toB64(hash)].join('$')
+  const hash = await pbkdf2Chained(password, salt, PBKDF2_ITERATIONS)
+  return ['pbkdf2c', PBKDF2_ITERATIONS, toB64(salt), toB64(hash)].join('$')
 }
 
 /** Constant time, so a wrong password cannot be guessed byte by byte by timing. */
@@ -55,12 +96,16 @@ function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
 export async function verifyPassword(password: string, stored: string | null): Promise<boolean> {
   if (!stored) return false
   const parts = stored.split('$')
-  if (parts.length !== 4 || parts[0] !== 'pbkdf2') return false
+  const scheme = parts[0]
+  if (parts.length !== 4 || (scheme !== 'pbkdf2' && scheme !== 'pbkdf2c')) return false
   const iterations = Number(parts[1])
   if (!Number.isFinite(iterations) || iterations < 1) return false
   const salt = fromB64(parts[2] as string)
   const expected = fromB64(parts[3] as string)
-  const actual = await pbkdf2(password, salt, iterations)
+  const actual =
+    scheme === 'pbkdf2c'
+      ? await pbkdf2Chained(password, salt, iterations)
+      : await pbkdf2(password, salt, iterations)
   return timingSafeEqual(actual, expected)
 }
 

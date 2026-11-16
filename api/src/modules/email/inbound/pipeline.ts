@@ -1,5 +1,5 @@
 import { sql } from 'kysely'
-import { db } from '@/db/index.ts'
+import { db, withTransaction } from '@/db/index.ts'
 import { sha256Hex } from '@/lib/crypto.ts'
 import { sanitizeEmailHtml, htmlToText, textToHtml } from '../sanitize.ts'
 import { recipientCandidates, type NormalizedEmail } from './normalize.ts'
@@ -126,7 +126,7 @@ export async function ingest(input: IngestInput): Promise<IngestOutcome> {
   const sanitizedHtml = email.html ? sanitizeEmailHtml(email.html) : textToHtml(email.text ?? '')
   const bodyText = email.text ?? htmlToText(email.html ?? '')
 
-  const result = await db().transaction().execute(async (trx) => {
+  const result = await withTransaction(async (trx) => {
     const customerId = await customerRepo.resolveOrCreate(trx, {
       email: email.from.address,
       name: email.from.name || email.from.address.split('@')[0] || email.from.address,

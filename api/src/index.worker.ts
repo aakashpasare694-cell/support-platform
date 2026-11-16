@@ -54,7 +54,35 @@ export default {
       )
     }
 
-    return runWithDb(scopedDb(env), () => app.fetch(request, env, ctx))
+    // `false`: D1 has no interactive transactions, so withTransaction() runs
+    // its callback sequentially instead of rolling back.
+    const res = await runWithDb(scopedDb(env), () => app.fetch(request, env, ctx), false)
+
+    // SPA fallback.
+    //
+    // Workers Assets serves a file when the path matches one; everything else
+    // reaches this Worker. A client-side route like /inbox/14 matches no file
+    // and no API route, so without this a refresh on any deep link 404s.
+    // API and webhook paths are excluded so a genuine 404 there stays a 404
+    // instead of returning HTML to something expecting JSON.
+    const path = new URL(request.url).pathname
+    const isApi = path.startsWith('/api/') || path.startsWith('/webhooks/') || path === '/health'
+    if (res.status === 404 && !isApi && request.method === 'GET') {
+      const assets = (env as unknown as { ASSETS?: { fetch: (r: Request) => Promise<Response> } }).ASSETS
+      if (assets) {
+        // A bare URL string, not a clone of the incoming Request: cloning
+        // carries headers the asset router may answer differently on.
+        const index = await assets.fetch(new Request(new URL('/index.html', request.url).toString()))
+        if (index.ok) {
+          return new Response(index.body, {
+            status: 200,
+            headers: { 'content-type': 'text/html; charset=utf-8' },
+          })
+        }
+      }
+    }
+
+    return res
   },
 
   /**
@@ -94,6 +122,6 @@ export default {
         `[email] ${message.from} -> ${message.to}: ${outcome.status}` +
           ('ticketNumber' in outcome && outcome.ticketNumber ? ` (${outcome.ticketNumber})` : ''),
       )
-    })
+    }, false)
   },
 }

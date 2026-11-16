@@ -111,11 +111,17 @@ export function createApp(env: Env) {
 
     // A database that is down is the single most common local failure, and
     // "something went wrong" sends people hunting in the wrong place. Name it.
-    const code = (err as { code?: string })?.code ?? ''
-    if (code.startsWith('SQLITE_') || /no such table/i.test(String((err as Error)?.message))) {
-      const detail = /no such table/i.test(String((err as Error)?.message))
-        ? `The database at ${config.db.file} has no schema yet. Run: npm run migrate && npm run seed`
-        : `The database at ${config.db.file} could not be read (${code}).`
+    // String(), not a cast: better-sqlite3 sets a string code like
+    // SQLITE_ERROR, but D1 sets a NUMBER. Calling .startsWith on it threw
+    // inside this very handler, which replaced every real error with a
+    // generic 500 and hid the actual cause.
+    const code = String((err as { code?: unknown })?.code ?? '')
+    const message = String((err as Error)?.message ?? '')
+    if (code.startsWith('SQLITE_') || /no such table|D1_ERROR/i.test(message)) {
+      const where = config.db.file || 'the database'
+      const detail = /no such table/i.test(message)
+        ? `${where} has no schema yet. Run the migrations.`
+        : `The database could not be read (${code || message}).`
       console.error(`[${rid}] database unavailable: ${code} — ${detail}`)
       return c.json(
         { success: false as const, error: { code: 'DATABASE_UNAVAILABLE', message: detail }, requestId: rid },

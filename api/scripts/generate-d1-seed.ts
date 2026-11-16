@@ -47,7 +47,13 @@ const TABLES = [
 const quote = (v: unknown): string => {
   if (v === null || v === undefined) return 'NULL'
   if (typeof v === 'number') return String(v)
-  if (Buffer.isBuffer(v)) return `X'${v.toString('hex')}'`
+  // @cloudflare/workers-types narrows Buffer.toString() to zero arguments,
+  // but this script is Node-only — build the hex literal by hand so the type
+  // definitions for the Workers runtime do not dictate Node script code.
+  if (Buffer.isBuffer(v)) {
+    const hex = Array.from(v as Uint8Array, (b) => b.toString(16).padStart(2, '0')).join('')
+    return `X'${hex}'`
+  }
   return `'${String(v).split("'").join("''")}'`
 }
 

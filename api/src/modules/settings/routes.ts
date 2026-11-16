@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
-import { db } from '@/db/index.ts'
+import { db, withTransaction } from '@/db/index.ts'
 import { actorOf, type AppEnv, type Ctx } from '@/http/ctx.ts'
 import { created, ok } from '@/http/respond.ts'
 import { BadRequest, NotFound } from '@/http/errors.ts'
@@ -263,7 +263,7 @@ settingsRoutes.post(
     if (!provider) throw new NotFound('That provider does not exist')
     if (!provider.is_enabled) throw new BadRequest('Enable the provider before making it the default')
 
-    await db().transaction().execute(async (trx) => {
+    await withTransaction(async (trx) => {
       await trx.updateTable('sp_email_providers').set({ is_global_default: 0 }).execute()
       await trx.updateTable('sp_email_providers').set({ is_global_default: 1 }).where('id', '=', id).execute()
     })

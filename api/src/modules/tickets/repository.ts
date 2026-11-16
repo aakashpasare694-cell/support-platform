@@ -1,3 +1,4 @@
+import type { Kysely } from 'kysely'
 import { sql, type Transaction } from 'kysely'
 import { db, type DB } from '@/db/index.ts'
 import type { ScopeGroups } from '@/http/ctx.ts'
@@ -239,7 +240,7 @@ export function attachmentsFor(ticketId: number) {
  * The UPDATE holds a row lock for the rest of the transaction, so two
  * concurrent creates cannot be handed the same number.
  */
-export async function nextTicketNumber(trx: Transaction<DB>, productId: number, prefix: string) {
+export async function nextTicketNumber(trx: Kysely<DB>, productId: number, prefix: string) {
   await sql`
     INSERT INTO sp_product_counters (product_id, last_number)
     VALUES (${productId}, 1)
@@ -256,7 +257,7 @@ export async function nextTicketNumber(trx: Transaction<DB>, productId: number, 
 }
 
 export async function insertTicket(
-  trx: Transaction<DB>,
+  trx: Kysely<DB>,
   values: {
     ticket_number: string
     product_id: number
@@ -277,7 +278,7 @@ export async function insertTicket(
 }
 
 export async function insertMessage(
-  trx: Transaction<DB>,
+  trx: Kysely<DB>,
   values: {
     ticket_id: number
     message_type: string
@@ -299,7 +300,7 @@ export async function insertMessage(
 }
 
 export async function insertActivity(
-  trx: Transaction<DB>,
+  trx: Kysely<DB>,
   values: {
     ticket_id: number
     actor_user_id: number | null
@@ -312,7 +313,7 @@ export async function insertActivity(
   await trx.insertInto('sp_ticket_activities').values(values).execute()
 }
 
-export async function setTicketTags(trx: Transaction<DB>, ticketId: number, tagIds: number[]) {
+export async function setTicketTags(trx: Kysely<DB>, ticketId: number, tagIds: number[]) {
   await trx.deleteFrom('sp_ticket_tags').where('ticket_id', '=', ticketId).execute()
   if (!tagIds.length) return
   await trx
