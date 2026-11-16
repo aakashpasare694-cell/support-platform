@@ -1,0 +1,12 @@
+name = "support-email-relay"
+main = "index.js"
+compatibility_date = "2026-09-01"
+
+# The tunnel URL while developing locally; the real API host in production.
+# A trycloudflare.com URL changes every time the tunnel restarts — update this
+# and redeploy, or move to a named tunnel with a stable hostname.
+[vars]
+INGEST_URL = "https://qui-slots-diana-samples.trycloudflare.com/webhooks/email/inbound/mime"
+
+# Set with:  wrangler secret put INBOUND_SECRET
+# Must equal INBOUND_WEBHOOK_SECRET in the API's .env

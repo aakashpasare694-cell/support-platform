@@ -1,0 +1,440 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Design tokens. Values are space-separated RGB so Tailwind can apply alpha.
+   Every colour in the app resolves through one of these — nothing hardcoded.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Native controls (checkboxes, scrollbars, date pickers) follow THIS, not the
+     OS preference — otherwise they render dark on a light page. */
+  color-scheme: light;
+
+  --bg: 246 247 250;
+  --surface: 255 255 255;
+  --surface-2: 248 249 252;
+  --surface-3: 241 243 247;
+  --border: 226 230 237;
+  --border-strong: 205 212 222;
+
+  --text: 16 22 36;
+  --text-muted: 92 102 120;
+  --text-subtle: 139 148 164;
+
+  --brand: 79 70 229;
+  --brand-hover: 67 56 202;
+  --brand-soft: 238 238 255;
+  --brand-fg: 255 255 255;
+  --ring: 99 102 241;
+
+  --success: 21 128 61;
+  --success-soft: 230 248 237;
+  --warning: 180 83 9;
+  --warning-soft: 255 246 230;
+  --danger: 190 29 29;
+  --danger-soft: 254 237 237;
+  --info: 3 105 161;
+  --info-soft: 231 245 254;
+
+  /* Chart categorical slots — validated for the light surface.
+     Fixed order: slot 1 = Created, slot 2 = Resolved. Never cycled. */
+  --chart-1: 79 70 229;
+  --chart-2: 13 148 136;
+  --chart-grid: 226 230 237;
+
+  /* ── Structural tokens ──────────────────────────────────────────────────
+     These are what make a design DIRECTION rather than a palette swap:
+     corner language, chrome (shadow vs hairline), list density and
+     heading treatment all move together. */
+  --radius-card: 0.75rem;
+  --radius-ctl: 0.5rem;
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.04), 0 1px 3px 0 rgb(0 0 0 / 0.06);
+  --shadow-raised: 0 4px 12px -2px rgb(0 0 0 / 0.08), 0 2px 6px -2px rgb(0 0 0 / 0.05);
+  --shadow-pop: 0 12px 32px -8px rgb(0 0 0 / 0.18), 0 4px 12px -4px rgb(0 0 0 / 0.10);
+  --row-py: 0.625rem;
+  --tracking-head: -0.011em;
+  --weight-head: 600;
+  /* How strongly a status/priority/tag chip is tinted with its own colour. */
+  --chip-tint: 12%;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --bg: 11 13 18;
+  --surface: 20 23 31;
+  --surface-2: 26 30 39;
+  --surface-3: 33 38 49;
+  --border: 39 44 56;
+  --border-strong: 58 65 80;
+
+  --text: 232 236 243;
+  --text-muted: 149 158 174;
+  --text-subtle: 111 120 136;
+
+  --brand: 132 128 248;
+  --brand-hover: 151 147 252;
+  --brand-soft: 37 35 69;
+  --brand-fg: 13 12 32;
+  --ring: 124 120 240;
+
+  --success: 74 201 126;
+  --success-soft: 20 46 33;
+  --warning: 234 165 71;
+  --warning-soft: 52 38 17;
+  --danger: 248 113 113;
+  --danger-soft: 57 25 25;
+  --info: 86 180 236;
+  --info-soft: 15 40 57;
+
+  /* Dark steps are SELECTED for the dark surface, not an automatic flip.
+     Both re-validated against #14171f: lightness band, chroma, CVD, contrast. */
+  --chart-1: 132 128 248;
+  --chart-2: 15 171 153;
+  --chart-grid: 39 44 56;
+
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.30);
+  --shadow-raised: 0 4px 12px -2px rgb(0 0 0 / 0.45);
+  --shadow-pop: 0 14px 36px -10px rgb(0 0 0 / 0.65);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DESIGN DIRECTIONS
+   Each is a complete system: palette, corner language, chrome, density and
+   heading treatment. Selected with data-design on <html>; the default (absent
+   or "studio") is the block above.
+
+   Every chart pair below was run through the six-check validator against its
+   OWN surface, in both modes. None are eyeballed.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── GRAPHITE ──────────────────────────────────────────────────────────────
+   Near-monochrome engineering tool. Hairline borders instead of shadows,
+   tight 6px corners, dense rows, violet reserved for state. */
+[data-design='graphite']:not(.dark) {
+  --bg: 250 250 250;
+  --surface: 255 255 255;
+  --surface-2: 250 250 251;
+  --surface-3: 244 244 245;
+  --border: 228 228 231;
+  --border-strong: 212 212 216;
+  --text: 9 9 11;
+  --text-muted: 82 82 91;
+  --text-subtle: 139 139 148;
+
+  --brand: 124 58 237;
+  --brand-hover: 109 40 217;
+  --brand-soft: 245 240 255;
+  --brand-fg: 255 255 255;
+  --ring: 139 92 246;
+
+  --success: 21 128 61;  --success-soft: 236 253 243;
+  --warning: 180 83 9;   --warning-soft: 255 247 237;
+  --danger: 190 29 29;   --danger-soft: 254 242 242;
+  --info: 3 105 161;     --info-soft: 240 249 255;
+
+  --chart-1: 124 58 237;
+  --chart-2: 14 159 110;
+  --chart-grid: 228 228 231;
+
+  --radius-card: 0.375rem;
+  --radius-ctl: 0.375rem;
+  --shadow-card: none;
+  --shadow-raised: 0 2px 6px -2px rgb(0 0 0 / 0.07);
+  --shadow-pop: 0 8px 24px -6px rgb(0 0 0 / 0.14);
+  --row-py: 0.4375rem;
+  --tracking-head: -0.019em;
+  --weight-head: 600;
+  --chip-tint: 13%;
+}
+
+[data-design='graphite'].dark {
+  --bg: 10 10 11;
+  --surface: 17 17 19;
+  --surface-2: 23 23 26;
+  --surface-3: 32 32 36;
+  --border: 39 39 44;
+  --border-strong: 60 60 67;
+  --text: 237 237 240;
+  --text-muted: 150 150 160;
+  --text-subtle: 112 112 122;
+
+  --brand: 139 92 246;
+  --brand-hover: 155 112 250;
+  --brand-soft: 36 27 61;
+  --brand-fg: 255 255 255;
+  --ring: 139 92 246;
+
+  --success: 74 201 126;  --success-soft: 17 40 27;
+  --warning: 234 165 71;  --warning-soft: 48 34 14;
+  --danger: 248 113 113;  --danger-soft: 54 23 23;
+  --info: 86 180 236;     --info-soft: 13 36 52;
+
+  --chart-1: 130 87 245;
+  --chart-2: 16 163 127;
+  --chart-grid: 39 39 44;
+
+  --radius-card: 0.375rem;
+  --radius-ctl: 0.375rem;
+  --shadow-card: none;
+  --shadow-raised: 0 2px 8px -2px rgb(0 0 0 / 0.6);
+  --shadow-pop: 0 10px 30px -8px rgb(0 0 0 / 0.8);
+  --row-py: 0.4375rem;
+  --tracking-head: -0.019em;
+  --weight-head: 600;
+  --chip-tint: 13%;
+}
+
+/* ─── ATLAS ─────────────────────────────────────────────────────────────────
+   Warm, calm and roomy. Paper surfaces, deep teal, generous 16px corners and
+   soft warm shadows. For teams who read a lot of long customer email. */
+[data-design='atlas']:not(.dark) {
+  --bg: 246 242 234;
+  --surface: 251 248 243;
+  --surface-2: 247 243 236;
+  --surface-3: 240 234 224;
+  --border: 229 221 207;
+  --border-strong: 209 198 180;
+  --text: 36 30 24;
+  --text-muted: 108 97 84;
+  --text-subtle: 150 138 122;
+
+  --brand: 13 148 136;
+  --brand-hover: 15 118 110;
+  --brand-soft: 223 243 240;
+  --brand-fg: 255 255 255;
+  --ring: 20 184 166;
+
+  --success: 21 128 61;  --success-soft: 226 244 232;
+  --warning: 180 83 9;   --warning-soft: 252 240 222;
+  --danger: 185 40 28;   --danger-soft: 252 234 230;
+  --info: 2 112 155;     --info-soft: 226 240 248;
+
+  --chart-1: 13 148 136;
+  --chart-2: 194 65 12;
+  --chart-grid: 229 221 207;
+
+  --radius-card: 1rem;
+  --radius-ctl: 0.625rem;
+  --shadow-card: 0 1px 2px 0 rgb(76 58 36 / 0.05), 0 2px 6px -1px rgb(76 58 36 / 0.07);
+  --shadow-raised: 0 6px 18px -4px rgb(76 58 36 / 0.12);
+  --shadow-pop: 0 16px 40px -10px rgb(76 58 36 / 0.22);
+  --row-py: 0.875rem;
+  --tracking-head: -0.004em;
+  --weight-head: 600;
+  --chip-tint: 17%;
+}
+
+[data-design='atlas'].dark {
+  --bg: 20 18 13;
+  --surface: 23 21 15;
+  --surface-2: 30 27 20;
+  --surface-3: 39 35 26;
+  --border: 51 46 35;
+  --border-strong: 73 66 51;
+  --text: 240 234 223;
+  --text-muted: 163 152 134;
+  --text-subtle: 125 115 99;
+
+  --brand: 15 171 153;
+  --brand-hover: 20 190 170;
+  --brand-soft: 17 48 44;
+  --brand-fg: 10 20 19;
+  --ring: 20 184 166;
+
+  --success: 74 201 126;  --success-soft: 18 42 28;
+  --warning: 221 150 60;  --warning-soft: 52 37 16;
+  --danger: 242 115 104;  --danger-soft: 56 26 22;
+  --info: 86 174 220;     --info-soft: 16 38 50;
+
+  --chart-1: 15 171 153;
+  --chart-2: 201 106 16;
+  --chart-grid: 51 46 35;
+
+  --radius-card: 1rem;
+  --radius-ctl: 0.625rem;
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.35);
+  --shadow-raised: 0 6px 18px -4px rgb(0 0 0 / 0.5);
+  --shadow-pop: 0 16px 40px -10px rgb(0 0 0 / 0.7);
+  --row-py: 0.875rem;
+  --tracking-head: -0.004em;
+  --weight-head: 600;
+  --chip-tint: 17%;
+}
+
+/* ─── CONTRAST ──────────────────────────────────────────────────────────────
+   Maximum legibility and density. Strong borders carry all the structure,
+   4px corners, no shadows, the tightest rows. Built for long shifts, bright
+   rooms and anyone who finds low-contrast UI hard work. */
+[data-design='contrast']:not(.dark) {
+  --bg: 255 255 255;
+  --surface: 255 255 255;
+  --surface-2: 246 247 249;
+  --surface-3: 236 238 242;
+  --border: 160 168 182;
+  --border-strong: 96 106 122;
+  --text: 0 0 0;
+  --text-muted: 55 65 81;
+  --text-subtle: 85 95 112;
+
+  --brand: 29 78 216;
+  --brand-hover: 23 62 173;
+  --brand-soft: 227 236 255;
+  --brand-fg: 255 255 255;
+  --ring: 29 78 216;
+
+  --success: 21 128 61;  --success-soft: 222 246 231;
+  --warning: 146 64 14;  --warning-soft: 254 243 221;
+  --danger: 176 21 21;   --danger-soft: 254 231 231;
+  --info: 2 92 138;      --info-soft: 224 241 251;
+
+  --chart-1: 29 78 216;
+  --chart-2: 21 128 61;
+  --chart-grid: 160 168 182;
+
+  --radius-card: 0.25rem;
+  --radius-ctl: 0.25rem;
+  --shadow-card: none;
+  --shadow-raised: none;
+  --shadow-pop: 0 6px 20px -4px rgb(0 0 0 / 0.25);
+  --row-py: 0.375rem;
+  --tracking-head: -0.006em;
+  --weight-head: 700;
+  --chip-tint: 24%;
+}
+
+[data-design='contrast'].dark {
+  --bg: 0 0 0;
+  --surface: 10 10 12;
+  --surface-2: 20 21 25;
+  --surface-3: 32 34 40;
+  --border: 90 97 110;
+  --border-strong: 138 146 161;
+  --text: 255 255 255;
+  --text-muted: 199 205 215;
+  --text-subtle: 160 168 182;
+
+  --brand: 59 130 246;
+  --brand-hover: 86 149 250;
+  --brand-soft: 16 36 70;
+  --brand-fg: 255 255 255;
+  --ring: 96 165 250;
+
+  --success: 34 197 94;   --success-soft: 10 46 24;
+  --warning: 245 180 70;  --warning-soft: 56 40 12;
+  --danger: 248 113 113;  --danger-soft: 62 22 22;
+  --info: 96 180 240;     --info-soft: 12 40 60;
+
+  --chart-1: 59 130 246;
+  --chart-2: 22 163 74;
+  --chart-grid: 90 97 110;
+
+  --radius-card: 0.25rem;
+  --radius-ctl: 0.25rem;
+  --shadow-card: none;
+  --shadow-raised: none;
+  --shadow-pop: 0 6px 20px -4px rgb(0 0 0 / 0.8);
+  --row-py: 0.375rem;
+  --tracking-head: -0.006em;
+  --weight-head: 700;
+  --chip-tint: 24%;
+}
+
+@layer base {
+  * {
+    @apply border-line;
+  }
+  html,
+  body {
+    @apply h-full;
+  }
+  body {
+    @apply bg-bg text-ink antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    text-rendering: optimizeLegibility;
+  }
+  h1,
+  h2 {
+    letter-spacing: var(--tracking-head);
+    font-weight: var(--weight-head);
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand/45 ring-offset-1 ring-offset-bg;
+  }
+  /* Panes that should glide rather than jump when we move them in code. */
+  .scroll-smooth-area {
+    scroll-behavior: smooth;
+  }
+
+  /* One global opt-out. Anyone who has asked their OS for reduced motion gets
+     instant scrolling and near-instant transitions everywhere, including the
+     scroll calls made from JavaScript. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Quiet, thin scrollbars — agents keep many panes open at once. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--border-strong)) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    @apply rounded-full border-4 border-solid border-transparent bg-line-strong bg-clip-padding;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  .card {
+    @apply border border-line bg-surface;
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+  /* Rendered customer email bodies. Sanitized server-side in production; the
+     styles here only tame the layout of whatever HTML a mail client produced. */
+  .email-body {
+    @apply text-[13.5px] leading-relaxed text-ink;
+  }
+  .email-body p {
+    @apply mb-3;
+  }
+  .email-body a {
+    @apply text-brand underline underline-offset-2;
+  }
+  .email-body ul,
+  .email-body ol {
+    @apply mb-3 ml-5 list-disc space-y-1;
+  }
+  .email-body ol {
+    @apply list-decimal;
+  }
+  .email-body blockquote {
+    @apply my-3 border-l-2 border-line-strong pl-3 text-ink-muted;
+  }
+  .email-body pre {
+    @apply mb-3 overflow-x-auto rounded-lg bg-surface-3 p-3 font-mono text-xs;
+  }
+  .email-body code {
+    @apply rounded bg-surface-3 px-1 py-0.5 font-mono text-[0.85em];
+  }
+  .email-body img {
+    @apply max-w-full rounded-lg;
+  }
+  .email-body hr {
+    @apply my-4 border-line;
+  }
+}

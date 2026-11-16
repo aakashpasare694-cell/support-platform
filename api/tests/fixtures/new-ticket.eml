@@ -1,0 +1,17 @@
+Message-ID: <CAF8xyz-new-001@mail.northbridgetrust.org>
+Date: Thu, 13 Nov 2026 09:14:22 +0000
+From: Eleanor Whitfield <eleanor@northbridgetrust.org>
+To: support@charityerp.com
+Delivered-To: erp@incomingmail.charityerp.com
+Subject: Gift Aid claim is rejecting every donor
+MIME-Version: 1.0
+Content-Type: text/html; charset=UTF-8
+
+<html><body>
+<p>Hello,</p>
+<p>Our Gift Aid claim is rejecting <strong>every</strong> donor since this morning.</p>
+<p>We have 340 declarations waiting. Can someone look today?</p>
+<script>alert('xss attempt')</script>
+<a href="javascript:void(0)">dodgy link</a>
+<a href="https://example.org/evidence.pdf">genuine link</a>
+</body></html>

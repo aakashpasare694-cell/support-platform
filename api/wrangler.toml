@@ -1,0 +1,21 @@
+name = "support-platform-api"
+main = "src/index.worker.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 is SQLite, so the schema in migrations/ and every query in the codebase
+# run unchanged here. Apply them with:
+#   wrangler d1 execute support-platform --file migrations/0001_init.sql
+[[d1_databases]]
+binding = "DB"
+database_name = "support-platform"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[vars]
+NODE_ENV = "production"
+APP_ENV = "production"
+CORS_ORIGINS = "https://support.example.com"
+
+# Secrets (wrangler secret put):
+#   JWT_SECRET, CREDENTIALS_MASTER_KEY,
+#   UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN

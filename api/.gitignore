@@ -1,0 +1,12 @@
+node_modules/
+dist/
+data/
+*.db
+*.db-shm
+*.db-wal
+.imap-processed.json
+.env
+.dev.vars
+.wrangler/
+*.log
+.DS_Store
